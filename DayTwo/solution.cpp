@@ -113,10 +113,6 @@ int part_two(std::vector<std::vector<int> >& reports) {
 
     for (int i = 0; i < reports.size(); i++) {
         int result = check_report_with_tolerance(reports.at(i), true);
-        if (!result) {
-            print_report(reports.at(i));
-            std::cout << "\n";
-        }
         results += result;
     }
 
@@ -127,10 +123,10 @@ int main() {
 
     std::vector<std::vector<int> > reports;
 
-    parse_input(reports, "arrg.txt");
+    parse_input(reports, "input.txt");
 
-    // std::cout << "Part One:\n";
-    // std::cout << part_one(reports);
+    std::cout << "Part One:\n";
+    std::cout << part_one(reports);
 	
     std::cout << "\nPart Two:\n";
     std::cout << part_two(reports);
