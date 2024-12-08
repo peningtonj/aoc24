@@ -232,60 +232,6 @@ coord spot_before(coord spot, coord direction){
     return add_coord_as_vector(spot, direction);
 }
 
-bool steps_into_loop(Maze maze, guard_step step) {
-    std::vector<coord> four_corners;
-
-    guard_step last_spot = step;
-
-    for (int i = 0; i < 5; i++){
-        coord obstacle = get_next_obstacle_from_step(maze, last_spot);
-        if (obstacle.x != -1 ) {
-            four_corners.push_back(obstacle);
-            last_spot.location = spot_before(obstacle, last_spot.direction);
-            last_spot.direction.turn_right();
-        } else {
-            return false;
-        }
-    }
-
-
-    return four_corners.at(0) == four_corners.at(four_corners.size() - 1); 
-}
-
-// Place an obstacle in front of the guard_step and see if it creates a loop
-bool check_if_creates_loop_easy(Maze maze, guard_step step, std::vector<guard_step> path) {
-    return false;
-    coord search_direction = step.direction;
-    search_direction.turn_right();
-
-    coord new_obstacle_location = add_coord_as_vector(step.location, step.direction);
-
-    if (contains(maze.obstacles, new_obstacle_location)) {
-        return false;
-    }
-
-    coord next_obstacle = get_next_obstacle_from_step(maze, guard_step {step.location, search_direction, 0});
-
-    if (next_obstacle.x != -1){
-        coord needed_walking_drection = search_direction;
-        needed_walking_drection.turn_right();
-
-        for (int i = 0; i < step.step; i++)
-            {
-                if ((path.at(i).location == spot_before(next_obstacle, search_direction)) 
-                and path.at(i).direction == needed_walking_drection) {
-                    return true;
-                }
-            }
-
-        coord start_position = spot_before(new_obstacle_location, step.direction);
-
-        guard_step new_step = guard_step {start_position, search_direction, -1};
-        return steps_into_loop(maze, new_step);
-        }
-
-    return false;
-}
 
 bool check_full_path(Maze maze, coord new_obstacle, guard_step new_starting_point) {
     Maze new_maze = maze;
