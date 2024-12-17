@@ -14,7 +14,7 @@ struct coord {
     int x, y;
 
     void print() {
-        std::cout << x << ", " << y;
+        std::cout << x << ", " << y << "\n";
     }
 
     bool operator==(const coord& other) const {
@@ -72,15 +72,52 @@ const std::vector<coord> DIRECTIONS = {
     coord{0,1},
 };
 
+coord rot(coord c, int direction) {
+    if (direction == 1) {
+        int temp = c.x;
+        c.x = c.y;
+        c.y = -temp;
+    } else {
+        int temp = c.x;
+        c.x = -c.y;
+        c.y = temp;
+    }
+
+    return c;
+}
+
+namespace std {
+    template <>
+    struct hash<coord> {
+        size_t operator()(const coord& c) const {
+            // Combine the hash of x and y
+            return std::hash<int>{}(c.x) ^ (std::hash<int>{}(c.y) << 1);
+        }
+    };
+}
+
+namespace std {
+    template <>
+    struct hash<node> {
+        size_t operator()(const node& n) const {
+            // Combine the hashes of location and direction
+            size_t locHash = std::hash<coord>{}(n.location);
+            size_t dirHash = std::hash<coord>{}(n.direction);
+            return locHash ^ (dirHash << 1);  // Combine the two hashes
+        }
+    };
+}
+
 class ReindeerMaze {
         int width, height;
-        std::vector<coord> path_coords;
+        std::set<coord> path_coords;
         coord start_coord; 
         coord end_coord;
     public:
         std::vector<node> path_nodes; 
-        std::vector<edge> edges;
-        std::set<coord> shortest_paths;    
+        std::unordered_map<node, std::vector<std::pair<node, int>>> adjList;
+        std::set<coord> shortest_paths_coords;
+        std::set<node> shortest_paths;    
         node start;
         node end;
         std::map<node, int> dist;       // Distance from start node
@@ -103,14 +140,14 @@ class ReindeerMaze {
                         {
                             case START:
                                 start_coord = coord{x, y};
-                                path_coords.push_back(coord{x,y});
+                                path_coords.insert(coord{x,y});
                                 break;
                             case END:
                                 end_coord = coord{x, y};
-                                path_coords.push_back(coord{x,y});
+                                path_coords.insert(coord{x,y});
                                 break;
                             case PATH:
-                                path_coords.push_back(coord{x,y});
+                                path_coords.insert(coord{x,y});
                             default:
                                 break;
                         }
@@ -124,50 +161,28 @@ class ReindeerMaze {
             }
 
         void create_graph() {
+            start = node{start_coord, DIRECTIONS.at(0)};
+            end = node{end_coord, coord{0, 0}};
+            adjList[end] = {}; 
+
             for (auto c : path_coords) {
-                
                 std::vector<node> direction_nodes;
                 for (auto d : DIRECTIONS) {
-                    direction_nodes.push_back(
-                        node{c, d}
-                    );
-                }
-
-                for (auto& x : direction_nodes) {
-                    for (auto& y : direction_nodes) {
-                        if ((x.direction.x != y.direction.x * -1) && (x.direction.y != y.direction.y * -1)) {
-                            edges.push_back(edge {x, y, 1000});
-                        }
+                    adjList[node{c, d}] = {}; 
+                    for (auto r : {rot(d, 1), rot(d, -1)}) {
+                        adjList.at(node{c, d}).push_back({node{c, r}, 1000});
                     }
-                }
-        
-                path_nodes.insert(path_nodes.end(), direction_nodes.begin(), direction_nodes.end());
+                
+                    if (path_coords.find(c + d) != path_coords.end()) {
+                        adjList.at(node{c, d}).push_back({node{c + d, d}, 1});
+                    } 
+                }        
             }
 
-            end.location = end_coord;
-            end.direction = coord {0, 0};
-
-            for (auto& x : path_nodes) {
-                if ((x.location == start_coord) and (x.direction == DIRECTIONS.at(0))) {
-                    start = x;
-                }
-
-                if (x.location == end_coord) {
-                    edges.push_back(edge {x, end, 0});
-                }
-
-                for (auto& y : path_nodes) {
-                    if ((x.location + x.direction) == y.location && x.direction == y.direction) {
-                        edges.push_back(edge {x, y, 1});
-                    }
-                }
+            for (auto d : DIRECTIONS) {
+                adjList.at(node{end_coord, d}).push_back({end, 0});
+                adjList.at(end).push_back({node{end_coord, d}, 0});
             }
-
-        path_nodes.push_back(end);
-
-        std::cout << "# Coords: " << path_coords.size() ;
-        std::cout << " # Nodes: " << path_nodes.size() << " # Edges: " << edges.size();
-
         }
         
         ReindeerMaze(std::string input_file) {
@@ -177,10 +192,11 @@ class ReindeerMaze {
 
     void dj() {
 
+        std::cout << "Calculating paths from S";
         // Initialize all distances to "infinity"
-        for (const auto& n : path_nodes) {
-            dist[n] = INT_MAX;
-            prev[n] = {NULL_NODE};
+        for (const auto& n : adjList) {
+            dist[n.first] = INT_MAX;
+            prev[n.first] = {NULL_NODE};
         }
         
         // Lambda for priority queue comparison (min-heap)
@@ -200,12 +216,11 @@ class ReindeerMaze {
             visited.insert(u);
 
             // Check neighbors (edges originating from u)
-            for (const auto& e : edges | std::views::filter([&u](const edge& ed) { return ed.origin == u; })) {
+            for (const auto& n : adjList[u]) {
 
-                node v = e.dest;
-                int weight = e.weight;
+                node v = n.first;
+                int weight = n.second;
                 int alt = dist[u] + weight;
-
                 if (alt < dist[v]) { // Relaxation
                     dist[v] = alt;
                     prev[v] = {u};
@@ -218,35 +233,6 @@ class ReindeerMaze {
         }
     }
 
-    int shortest_path_value() {
-        // Path reconstruction
-        std::vector<node> path;
-        node current = end;
-        while (current != start && current != NULL_NODE) {
-            path.push_back(current);
-            current = prev[current].at(0);
-        }
-        path.push_back(start);
-        std::reverse(path.begin(), path.end());
-
-        // Calculate the total weight of the shortest path
-        int result = 0;
-        std::cout << "\n";
-
-        for (size_t i = 0; i < path.size() - 1; ++i) {
-            auto it = std::find_if(edges.begin(), edges.end(),
-                                [&path, i](const edge& e) { return e.origin == path[i] && e.dest == path[i + 1]; });
-            
-            if (it != edges.end()) {
-                // it->origin.location.print(); std::cout << " - "; it->origin.direction.print();
-                // std::cout << " -- " << it->weight << " -->";
-                // std::cout << "\n";
-                result += it->weight;
-            }
-        }
-
-        return result;
-    }
 
     int find_shortest_paths() {
         // Path reconstruction
@@ -254,25 +240,28 @@ class ReindeerMaze {
         to_check.push(end);
         while (!to_check.empty()) {
             auto current = to_check.front();
-            // current.location.print(); std::cout << "\n";
             to_check.pop();
-            // if (shortest_paths.find(current.location) != shortest_paths.end()) continue;
-            shortest_paths.insert(current.location);
+            if (shortest_paths.contains(current)) continue;
+            shortest_paths.insert(current);
             for (auto p : prev[current]) {
+                // p.location.print();
                 to_check.push(p);
             }
         }
-        shortest_paths.insert(start.location);
+        shortest_paths.insert(start);
+        for (auto n: shortest_paths) {
+            shortest_paths_coords.insert(n.location);
+        }
 
-        return shortest_paths.size();
+        return shortest_paths_coords.size() - 1;
     }
 
     void print_map() {
         std::cout << "\n";
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                std::string c = contains(path_coords, coord {x, y}) ? "." : "#";
-                c = shortest_paths.contains(coord {x, y}) ? "O" : c;
+                std::string c = path_coords.contains(coord {x, y}) ? "." : "#";
+                c = shortest_paths_coords.contains(coord {x, y}) ? "O" : c;
                 std::cout << c;
             }
             std::cout << "\n";
@@ -281,7 +270,7 @@ class ReindeerMaze {
 };
 
 int part_one(ReindeerMaze maze) {
-    return maze.shortest_path_value();
+    return maze.dist.at(maze.end);;
 }
 
 int part_two(ReindeerMaze maze) {
