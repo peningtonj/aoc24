@@ -9,6 +9,7 @@
 #include <functional> // for std::bind
 #include <set>
 #include <regex>
+#include <unordered_set>
 
 struct coord {
     int x, y;
@@ -46,6 +47,28 @@ const std::vector<coord> DIRECTIONS = {
     coord{0,-1},
     coord{0,1},
 };
+
+namespace std {
+    template <>
+    struct hash<coord> {
+        size_t operator()(const coord& c) const {
+            size_t h1 = std::hash<int>{}(c.x);
+            size_t h2 = std::hash<int>{}(c.y);
+            return h1 ^ (h2 * 31); // Multiply by a prime number to reduce collisions
+        }
+    };
+}
+
+namespace std {
+    template <>
+    struct hash<std::pair<coord, coord>> {
+        size_t operator()(const std::pair<coord, coord>& p) const {
+            size_t h1 = std::hash<coord>{}(p.first);
+            size_t h2 = std::hash<coord>{}(p.second);
+            return h1 ^ (h2 * 31); // Again, combine using a prime multiplier
+        }
+    };
+}
 
 
 class CPURace {
@@ -108,8 +131,16 @@ class CPURace {
         }
     }
 
-    int race_distance(coord a, coord b) {
-        return abs(a.x - b.x) + abs(a.y - b.y);
+
+    // std::map<std::pair<coord, coord>, int> distance_cache;
+    int race_distance(const coord& a, const coord& b) {
+        // auto key = std::pair{a, b};
+        // if (distance_cache.contains(key)) {
+            // return distance_cache[key];
+        // }
+        int dist = abs(a.x - b.x) + abs(a.y - b.y);
+        // distance_cache[key] = dist;
+        return dist;
     }
 
     int skip_options(int required_improvement) {
@@ -131,27 +162,27 @@ class CPURace {
         return good_skips;
     }
 
-    int new_rules(int required_improvement) {
-        std::set<std::pair<coord, coord> > good_skips;
 
-        int normal_time = path.size();
-        for (int i = 0; i < path.size() - required_improvement; i++) {
-            std::vector<coord> remaining_path(path.begin() + i + required_improvement, path.end());
-            coord current = path.at(i);
-            auto options = remaining_path | std::views::filter([this, current](coord c){
-                return race_distance(current, c) < 21;
-            });
-            for (auto o : options) {
-                auto skip_to = std::find(path.begin() + i, path.end(), o);
-                int skipped = std::distance(path.begin() + i, skip_to);
-                if ((skipped - race_distance(current, o)) >= required_improvement) {
-                    good_skips.insert({current, o});
-                }
+int new_rules(const int required_improvement) {
+    std::unordered_set<std::pair<coord, coord>> good_skips;
+
+    int normal_time = path.size();
+    for (int i = 0; i < path.size() - required_improvement; i++) {
+        coord current = path[i];
+        for (int j = i + required_improvement; j < path.size(); j++) {
+            coord c = path[j];
+            int d = race_distance(current, c);
+
+            if (d >= 21) continue;
+            int skipped = j - i;
+            if ((skipped - d) >= required_improvement) {
+                good_skips.emplace(current, c);
             }
         }
-
-        return good_skips.size();
     }
+
+    return good_skips.size();
+}
 
     void print_map() {
         std::cout << "\n";
