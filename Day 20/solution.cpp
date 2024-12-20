@@ -144,22 +144,24 @@ class CPURace {
     }
 
     int skip_options(int required_improvement) {
-        int good_skips = 0;
-        int normal_time = path.size();
-        for (int i = 0; i < path.size() - required_improvement; i++) {
-            std::vector<coord> remaining_path(path.begin() + i + required_improvement, path.end());
-            coord current = path.at(i);
-            auto options = remaining_path | std::views::filter([this, current](coord c){
-                return race_distance(current, c) < 3;
-            });
-            for (auto o : options) {
-                auto skip_to = std::find(path.begin() + i, path.end(), o);
-                int skipped = std::distance(path.begin() + i, skip_to);
-                if ((skipped - race_distance(current, o)) >= required_improvement) good_skips++;
+    std::unordered_set<std::pair<coord, coord>> good_skips;
+
+    int normal_time = path.size();
+    for (int i = 0; i < path.size() - required_improvement; i++) {
+        coord current = path[i];
+        for (int j = i + required_improvement; j < path.size(); j++) {
+            coord c = path[j];
+            int d = race_distance(current, c);
+
+            if (d >= 3) continue;
+            int skipped = j - i;
+            if ((skipped - d) >= required_improvement) {
+                good_skips.emplace(current, c);
             }
         }
+    }
 
-        return good_skips;
+    return good_skips.size();
     }
 
 
