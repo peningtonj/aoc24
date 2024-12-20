@@ -143,7 +143,7 @@ class CPURace {
         return dist;
     }
 
-    int skip_options(int required_improvement) {
+    int skip_options(int required_improvement, int cheat_length) {
     std::unordered_set<std::pair<coord, coord>> good_skips;
 
     int normal_time = path.size();
@@ -153,7 +153,7 @@ class CPURace {
             coord c = path[j];
             int d = race_distance(current, c);
 
-            if (d >= 3) continue;
+            if (d > cheat_length) continue;
             int skipped = j - i;
             if ((skipped - d) >= required_improvement) {
                 good_skips.emplace(current, c);
@@ -164,46 +164,14 @@ class CPURace {
     return good_skips.size();
     }
 
-
-int new_rules(const int required_improvement) {
-    std::unordered_set<std::pair<coord, coord>> good_skips;
-
-    int normal_time = path.size();
-    for (int i = 0; i < path.size() - required_improvement; i++) {
-        coord current = path[i];
-        for (int j = i + required_improvement; j < path.size(); j++) {
-            coord c = path[j];
-            int d = race_distance(current, c);
-
-            if (d >= 21) continue;
-            int skipped = j - i;
-            if ((skipped - d) >= required_improvement) {
-                good_skips.emplace(current, c);
-            }
-        }
-    }
-
-    return good_skips.size();
-}
-
-    void print_map() {
-        std::cout << "\n";
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                std::string c = path_coords.contains(coord {x, y}) ? "." : "#";
-                std::cout << c;
-            }
-            std::cout << "\n";
-        }
-    }
 };
 
 int part_one(CPURace race) {
-    return race.skip_options(100);
+    return race.skip_options(100, 2);
 }
 
 int part_two(CPURace race) {
-    return race.new_rules(100);
+    return race.skip_options(100, 20);
 }
 
 int main() {
